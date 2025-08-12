@@ -1,0 +1,54 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.venv
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+*.pid
+
+# Redis
+redis/data/
+*.rdb
+*.aof
+
+# Test results
+results/
+*.log
+.pytest_cache/
+htmlcov/
+.coverage
+*.cover
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+
+# Additional entries
+appendonlydir/
+dump.rdb
+
+# Temporary directories  
+tmp/
+temp/

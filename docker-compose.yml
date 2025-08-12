@@ -1,0 +1,118 @@
+services:
+  # Redis 服務 - 使用自定義配置
+  redis:
+    image: redis:7-alpine
+    container_name: celery-test-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+      - ./redis/data:/data
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - celery-test-network
+
+  # Celery Worker 1
+  worker1:
+    build: .
+    container_name: celery-test-worker1
+    command: celery -A src.celery_app worker --loglevel=info --concurrency=2 -n worker1@%h
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - celery-test-network
+
+  # Celery Worker 2 (用於測試多 worker 場景)
+  worker2:
+    build: .
+    container_name: celery-test-worker2
+    command: celery -A src.celery_app worker --loglevel=info --concurrency=2 -n worker2@%h
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - celery-test-network
+
+  # Celery Beat (定時任務)
+  beat:
+    build: .
+    container_name: celery-test-beat
+    command: celery -A src.celery_app beat --loglevel=info
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - celery-test-network
+
+  # Flower (監控介面)
+  flower:
+    build: .
+    container_name: celery-test-flower
+    command: celery -A src.celery_app flower --port=5555
+    ports:
+      - "5555:5555"
+    volumes:
+      - ./src:/app/src
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - FLOWER_UNAUTHENTICATED_API=true
+    networks:
+      - celery-test-network
+
+  # Test Runner (用於執行測試)
+  test-runner:
+    build: .
+    container_name: celery-test-runner
+    command: tail -f /dev/null  # 保持容器運行
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
+      - ./results:/app/results
+    depends_on:
+      - redis
+      - worker1
+      - worker2
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+      - PYTHONUNBUFFERED=1
+    networks:
+      - celery-test-network
+
+networks:
+  celery-test-network:
+    driver: bridge
+
+volumes:
+  redis-data:
